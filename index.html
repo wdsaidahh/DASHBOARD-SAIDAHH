@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<title>Dashboard Deteksi IP & URL + Counter (Fixed & Optimized)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+/* --- Gaya CSS --- */
+body { 
+    /* Warna default jika gambar gagal dimuat */
+    background:#0f0f0f; 
+    color:#fff; 
+    font-family:Arial, sans-serif; 
+    padding:20px; 
+
+    /* === MODIFIKASI: BACKGROUND GAMBAR === */
+    background-image: url('https://cdn.areabermain.club/assets/cdn/az9/2025/12/04/20251204/7dad39667954215d3370fecb7aa54720/sleekshot.png'); /* GANTI DENGAN URL GAMBAR ANDA */
+    background-repeat: no-repeat;
+    background-attachment: fixed; /* Membuat gambar tetap saat menggulir */
+    background-size: cover; /* Memastikan gambar menutupi seluruh background */
+    background-position: center;
+
+    /* Tambahkan transparansi pada background elemen untuk visibilitas yang lebih baik */
+    /* background-color: rgba(15, 15, 15, 0.9); */
+}
+h1 { color:#fff; }
+#pasteArea { 
+    width:100%; 
+    height:160px; 
+    background:#111; 
+    color:#fff; 
+    border:2px dashed #555; 
+    padding:10px; 
+    box-sizing: border-box; 
+    resize: vertical; 
+}
+button { 
+    margin-top:10px; 
+    padding:10px 16px; 
+    background:#facc15; 
+    color:#000; 
+    border:none; 
+    cursor:pointer; 
+    border-radius:6px; 
+    font-weight:bold; 
+    transition: background 0.2s;
+}
+button:hover { background: #e0b800; }
+button:disabled { background: #555; cursor: not-allowed; }
+ 
+/* Table utama scrollable */
+#outputWrapper {
+    max-height: 400px; 
+    overflow-y: auto; 
+    margin-top:20px;
+    border:1px solid #333;
+}
+
+table { width:100%; border-collapse:collapse; background:#181818; }
+th { background:#facc15; color:#000; padding:10px; border:1px solid #333; position: sticky; top: 0; z-index: 10; }
+td { padding:8px; border:1px solid #222; color:#ddd; font-size: 0.9em; }
+ 
+.summaryBox { margin-top:30px; background:#1a1a1a; padding:20px; border-radius:8px; }
+.summaryBox h2 { color:#facc15; margin-bottom:10px; }
+
+/* Ringkasan scrollable */
+#ipSummaryTableWrapper, #urlSummaryTableWrapper {
+    max-height: 200px;
+    overflow-y: auto;
+    border:1px solid #333;
+    margin-top:10px;
+}
+</style>
+
+</head>
+<body>
+
+<h1>📋 Dashboard Deteksi IP By SAIDAHH 🔥😎😎</h1>
+
+<textarea id="pasteArea" placeholder="Paste data Excel di sini..."></textarea>
+<br>
+<button id="startBtn">Mulai Proses</button>
+<span id="processStatus" style="margin-left: 15px; color: #4CAF50;"></span>
+
+<h2>Hasil Data (Maks. 1000 Baris Ditampilkan)</h2>
+<div id="outputWrapper">
+  <table id="outputTable">
+    <thead>
+      <tr>
+        <th>Akun</th>
+        <th>Tanggal</th>
+        <th>IP Login 1</th>
+        <th>IP Login 2</th>
+        <th>URL Login</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<div class="summaryBox">
+  <h2>📊 Ringkasan Penggunaan IP & URL</h2>
+
+  <h3>🔸 IP Login (IP1 + IP2)</h3>
+  <div id="ipSummaryTableWrapper">
+    <table id="ipSummaryTable">
+        <thead>
+            <tr>
+                <th>IP Address</th>
+                <th>Jumlah Dipakai</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+  </div>
+
+  <h3 style="margin-top:25px;">🔸 URL Login</h3>
+  <div id="urlSummaryTableWrapper">
+    <table id="urlSummaryTable">
+        <thead>
+            <tr>
+                <th>URL</th>
+                <th>Jumlah Dipakai</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+/* --- Kode JavaScript (Fixed & Optimized) --- */
+(function(){
+
+    // Regular Expressions untuk deteksi
+    const ipv4Re = /(?:(?:25[0-5]|2[0-4]\d|1?\d{1,2})(?:\.(?:25[0-5]|2[0-4]\d|1?\d{1,2})){3})/g;
+    const ipv6Re = /(?:[0-9a-fA-F]{1,4}(?::[0-9a-fA-F]{1,4}){2,7})/g;
+    const urlRe = /\b(?:https?:\/\/[^\s"']+|www\.[^\s"']+|[^\s"']+\.[a-zA-Z]{2,})(?:\/[^\s"']*)?\b/g;
+
+    const textarea = document.getElementById("pasteArea");
+    const startBtn = document.getElementById("startBtn");
+    const tbody = document.querySelector("#outputTable tbody");
+    const statusSpan = document.getElementById("processStatus");
+    const maxDisplayedRows = 1000; // Hanya 1000 baris pertama yang akan dimasukkan ke DOM
+
+    let collectedIPs = [];
+    let collectedURLs = [];
+    const combinedIPRe = new RegExp(ipv4Re.source + "|" + ipv6Re.source, "g");
+
+    // Ekstraksi IP dari kolom (mengambil maks 2 IP)
+    function extractIPsByTab(parts) {
+        let ipCandidates = [];
+        
+        parts.forEach(col => {
+            const matches = col.match(combinedIPRe);
+            if(matches) ipCandidates.push(...matches);
+        });
+        return ipCandidates.slice(0, 2);
+    }
+
+    // Ekstraksi URL
+    function extractURLs(line) {
+        const found = line.match(urlRe);
+        if (!found) return [];
+        return found.map(u => u.trim());
+    }
+
+    // Utility untuk escaping HTML
+    function escape(s) {
+        return (s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+
+    // Fungsi untuk menghitung dan menampilkan ringkasan IP & URL
+    function calculateSummary() {
+        let ipCount = {};
+        let urlCount = {};
+
+        // 1. Menghitung kemunculan IP
+        collectedIPs.forEach(ip => {
+            ip = ip.toLowerCase();
+            ipCount[ip] = (ipCount[ip] || 0) + 1;
+        });
+
+        // 2. Menghitung kemunculan URL
+        collectedURLs.forEach(url => {
+            let cleanUrl = url.replace(/^(https?:\/\/)/, '').replace(/\/$/, '');
+            urlCount[cleanUrl] = (urlCount[cleanUrl] || 0) + 1;
+        });
+
+        // 3. --- Tampilkan Ringkasan IP ---
+        const ipTB = document.querySelector("#ipSummaryTable tbody");
+        ipTB.innerHTML = "";
+        const ipFragment = document.createDocumentFragment();
+
+        Object.entries(ipCount).sort((a,b)=>b[1]-a[1]).forEach(([ip,c])=>{
+            const row = document.createElement('tr');
+            row.innerHTML = `<td>${escape(ip)}</td><td>${c}</td>`;
+            ipFragment.appendChild(row);
+        });
+        ipTB.appendChild(ipFragment);
+
+        // 4. --- Tampilkan Ringkasan URL ---
+        const urlTB = document.querySelector("#urlSummaryTable tbody");
+        urlTB.innerHTML = "";
+        const urlFragment = document.createDocumentFragment();
+        
+        Object.entries(urlCount).sort((a,b)=>b[1]-a[1]).forEach(([url,c])=>{
+            const row = document.createElement('tr');
+            row.innerHTML = `<td>${escape(url)}</td><td>${c}</td>`;
+            urlFragment.appendChild(row);
+        });
+        urlTB.appendChild(urlFragment);
+    }
+
+    // Handler tombol Mulai Proses
+    startBtn.addEventListener("click", function(){
+        startBtn.disabled = true;
+        tbody.innerHTML = "";
+        
+        // Reset penuh data yang dikumpulkan
+        collectedIPs.length = 0; 
+        collectedURLs.length = 0;
+
+        const lines = textarea.value.split(/\r?\n/).filter(l => l.trim());
+        if(lines.length === 0) {
+             statusSpan.textContent = "Tidak ada data untuk diproses.";
+             startBtn.disabled = false;
+             return;
+        }
+
+        let i = 0;
+        const chunk = 500;
+        const totalLines = lines.length;
+
+        // Document Fragment untuk tabel utama
+        const mainFragment = document.createDocumentFragment();
+
+        function runChunk() {
+            const end = Math.min(i + chunk, totalLines);
+            statusSpan.textContent = `Memproses... (${i} / ${totalLines} baris)`;
+
+            for (; i < end; i++) {
+                const line = lines[i];
+                const parts = line.split(/\t+/);
+
+                const akun    = parts[0] || "";
+                const tanggal = parts[1] || "";
+
+                const ips = extractIPsByTab(parts);
+                const ip1 = ips[0] || "";
+                const ip2 = ips[1] || "";
+
+                if (ip1) collectedIPs.push(ip1);
+                if (ip2) collectedIPs.push(ip2);
+
+                const urls = extractURLs(line);
+                const url = urls[0] || "";
+                if (url) collectedURLs.push(url);
+
+                // HANYA buat baris jika jumlah baris yang ditampilkan belum mencapai batas
+                if (i < maxDisplayedRows) {
+                    const newRow = document.createElement('tr');
+                    newRow.innerHTML = `
+                        <td>${escape(akun)}</td>
+                        <td>${escape(tanggal)}</td>
+                        <td>${escape(ip1)}</td>
+                        <td>${escape(ip2)}</td>
+                        <td>${escape(url)}</td>
+                    `;
+                    mainFragment.appendChild(newRow);
+                }
+            }
+            
+            // --- Cek apakah masih ada chunk yang harus dijalankan ---
+            if (i < totalLines) {
+                // Jika i mencapai batas tampilan (1000) dan masih ada data, 
+                // masukkan semua fragment yang sudah terkumpul ke DOM
+                if (i >= maxDisplayedRows && mainFragment.children.length > 0) {
+                    tbody.appendChild(mainFragment);
+                }
+                
+                // Lanjutkan proses ke chunk berikutnya (tanpa lag)
+                setTimeout(runChunk, 0); 
+            } else {
+                // --- Proses Selesai ---
+                // Sisipkan sisa baris terakhir (jika i < 1000)
+                if (mainFragment.children.length > 0) {
+                   tbody.appendChild(mainFragment); 
+                }
+                
+                // PANGGIL FUNGSI RINGKASAN agar filter IP muncul
+                calculateSummary();
+                
+                statusSpan.textContent = `Proses Selesai. ${totalLines} baris diproses.`;
+                startBtn.disabled = false;
+            }
+        }
+
+        runChunk();
+    });
+
+})();
+</script>
+
+</body>
+</html>
