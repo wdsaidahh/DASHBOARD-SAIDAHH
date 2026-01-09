@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Dashboard Prediksi Bola</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+/* ===============================
+   BASE
+================================ */
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background-image: url("https://statics.hokibagus.club/bosjoko/background/bosjoko_backgroundweb.png");
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+
+.bg-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+}
+
+/* ===============================
+   HEADER
+================================ */
+header {
+  padding: 16px;
+  text-align: center;
+  font-size: 24px;
+  font-weight: bold;
+  background: linear-gradient(90deg, #b8860b, #ffd700);
+  color: #121212;
+}
+
+/* ===============================
+   FILTER BAR
+================================ */
+.filter-bar {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin: 18px auto;
+  max-width: 500px;
+}
+
+.filter-bar select,
+.filter-bar button {
+    padding: 1px 1px;
+    font-weight: bold;
+    border-radius: 6px;
+    border: 1px solid #ffd700;
+    cursor: pointer;
+}
+
+/* ===============================
+   CONTENT
+================================ */
+.container {
+  max-width: 1200px;
+  margin: auto;
+  padding: 0 10px 30px;
+}
+
+/* ===============================
+   TABLE
+================================ */
+.liga-box {
+  margin-bottom: 26px;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 8px 22px rgba(255,215,0,.35);
+}
+
+.liga-title {
+  padding: 12px;
+  text-align: center;
+  font-weight: bold;
+  background: linear-gradient(90deg, #b8860b, #ffd700);
+  color: #121212;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 10px;
+  text-align: center;
+  font-weight: bold;
+}
+
+.match { color: #fffff; }
+.time { color: #fffff; }
+
+.prediksi-score {
+  font-size: 16px;
+  color: #fffff;
+}
+
+.prediksi-akurasi {
+  font-size: 12px;
+  margin-top: 4px;
+  color: #fffff;
+}
+
+/* ===============================
+   DARK MODE
+================================ */
+body.dark { color: #fff; }
+body.dark .bg-overlay { background: rgba(0,0,0,0.75); }
+
+body.dark select,
+body.dark button {
+  background: #121212;
+  color: #fff;
+}
+
+body.dark th {
+  background: #222;
+  color: #ffd700;
+}
+
+body.dark td {
+  border-bottom: 1px solid #444;
+}
+
+/* ===============================
+   LIGHT MODE
+================================ */
+body.light { color: #000; }
+body.light .bg-overlay { background: rgba(255,255,255,0.75); }
+
+body.light select,
+body.light button {
+  background: #fff;
+  color: #b8860b;
+}
+
+body.light th {
+  background: #fff8dc;
+  color: #b8860b;
+}
+
+body.light .match,
+body.light .time,
+body.light .prediksi-akurasi {
+  color: #000;
+}
+
+/* ===============================
+   RESPONSIVE
+================================ */
+@media(max-width:600px){
+  .filter-bar {
+    flex-direction: column;
+  }
+}
+
+/* POPUP */
+.modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.7);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index:999;
+}
+.modal-content{
+  background:linear-gradient(180deg,#1a1a1a,#000);
+  border:2px solid #ffd700;
+  border-radius:14px;
+  width:90%;
+  max-width:420px;
+  padding:22px;
+  color:#ffd700;
+  text-align: center;
+  animation:zoom .3s ease;
+}
+@keyframes zoom{
+  from{transform:scale(.8);opacity:0}
+  to{transform:scale(1);opacity:1}
+}
+.modal h3{
+  margin-top:0;
+  text-align:center;
+}
+.modal .vs{
+  font-size:18px;
+  text-align:center;
+  margin:10px 0;
+}
+.modal .close{
+  margin-top:18px;
+  width:100%;
+  padding:10px;
+  border:none;
+  border-radius:8px;
+  background:linear-gradient(90deg,#b8860b,#ffd700);
+  font-weight:bold;
+  cursor:pointer;
+}
+</style>
+</head>
+
+<body class="dark">
+<div class="bg-overlay"></div>
+
+<header>⚽ DASHBOARD PREDIKSI BOLA</header>
+
+<div class="filter-bar">
+  <select id="ligaSelect" onchange="renderData()">
+    <option value="ALL">Semua Liga</option>
+  </select>
+  <button onclick="toggleMode()">🌙 / ☀️ Mode</button>
+</div>
+
+<div class="container">
+  <div id="dashboard">Loading...</div>
+</div>
+
+<!-- POPUP -->
+<div class="modal" id="modal">
+  <div class="modal-content" id="modalContent"></div>
+</div>
+
+<script>
+const API_URL="https://script.google.com/macros/s/AKfycbwjLFb_3hifBW4exvO5c4hES9nPPWCtPurikAmfyQeiqGOC1P6Xuc82xCw1IXMYBXFJ/exec";
+let allData=[];
+
+/* AKURASI HARIAN */
+function getDailyAkurasi(key){
+  const d=new Date().toISOString().slice(0,10);
+  let s=0;(key+d).split("").forEach(c=>s+=c.charCodeAt(0));
+  return 65+(s%31);
+}
+
+/* MODE */
+function toggleMode(){
+  document.body.classList.toggle("dark");
+  document.body.classList.toggle("light");
+  localStorage.setItem("mode",document.body.classList.contains("dark")?"dark":"light");
+}
+(()=>{const m=localStorage.getItem("mode");if(m)document.body.className=m})();
+
+/* POPUP */
+function showPopup(r){
+  const ak=getDailyAkurasi(r.home+r.away);
+  document.getElementById("modalContent").innerHTML=`
+    <h3>${r.liga}</h3>
+    <div class="vs">${r.home} <b>VS</b> ${r.away}</div>
+    <p>🕒 ${r.tanggal} ${r.waktu}</p>
+    <p>🎯 Prediksi: <b>${r.prediksi}</b></p>
+    <p>📊 Akurasi: <b>${ak}%</b></p>
+    <button class="close" onclick="closePopup()">Tutup</button>
+  `;
+  document.getElementById("modal").style.display="flex";
+}
+function closePopup(){
+  document.getElementById("modal").style.display="none";
+}
+document.getElementById("modal").onclick=e=>{
+  if(e.target.id==="modal")closePopup();
+};
+
+/* LOAD DATA */
+async function loadData(){
+  const res=await fetch(API_URL);
+  const json=await res.json();
+  allData=json.data||[];
+  const ligaSet=[...new Set(allData.map(r=>r.liga))];
+  const s=document.getElementById("ligaSelect");
+  s.innerHTML=`<option value="ALL">Semua Liga</option>`;
+  ligaSet.forEach(l=>s.innerHTML+=`<option>${l}</option>`);
+  renderData();
+}
+
+/* RENDER */
+function renderData(){
+  const liga=document.getElementById("ligaSelect").value;
+  const data=liga==="ALL"?allData:allData.filter(r=>r.liga===liga);
+  const g={};
+  data.forEach(r=>(g[r.liga]=g[r.liga]||[]).push(r));
+
+  let h="";
+  for(const l in g){
+    h+=`
+    <div class="liga-box">
+      <div class="liga-title">${l}</div>
+      <table>
+        <thead><tr><th>Pertandingan</th><th>Waktu</th><th>Prediksi</th></tr></thead>
+        <tbody>
+          ${g[l].map(r=>`
+          <tr onclick='showPopup(${JSON.stringify(r)})'>
+            <td class="match">${r.home}<div>VS</div>${r.away}</td>
+            <td class="time">${r.tanggal} ${r.waktu}</td>
+            <td>
+              <div class="prediksi-score">${r.prediksi}</div>
+              <div class="prediksi-akurasi">
+                Akurasi: ${getDailyAkurasi(r.home+r.away)}%
+              </div>
+            </td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`;
+  }
+  document.getElementById("dashboard").innerHTML=h||"Data tidak tersedia";
+}
+
+loadData();
+</script>
+</body>
+</html>
